@@ -1,5 +1,6 @@
 package com.chenjimou.swimmingfishdemo;
 
+import android.animation.ValueAnimator;
 import android.graphics.Canvas;
 import android.graphics.ColorFilter;
 import android.graphics.Paint;
@@ -7,6 +8,7 @@ import android.graphics.Path;
 import android.graphics.PixelFormat;
 import android.graphics.PointF;
 import android.graphics.drawable.Drawable;
+import android.view.animation.LinearInterpolator;
 
 import androidx.annotation.IntDef;
 import androidx.annotation.NonNull;
@@ -25,10 +27,10 @@ public class FishDrawable extends Drawable {
     private PointF fishTailMiddlePoint;
     // 鱼尾小圆的圆心
     private PointF fishTailSmallPoint;
-    // 鱼头的朝向角度（以鱼的重心建立坐标系，鱼头圆心与重心之间连线与x轴正方向的夹角角度）
+    // 鱼头在未播放动画时的朝向角度（以鱼的重心建立坐标系，鱼头圆心与重心之间连线与x轴正方向的夹角角度）
     private float fishMainAngle = 90;
     // 鱼头的半径，鱼其他部位的大小都依据鱼头的半径决定
-    private float HEAD_RADIUS = 100;
+    private float HEAD_RADIUS = 50;
     // 鱼身的长度
     private float BODY_LENGTH = 3.2f * HEAD_RADIUS;
     // 鱼尾大圆的半径
@@ -37,6 +39,8 @@ public class FishDrawable extends Drawable {
     private float TAIL_MIDDLE_CIRCLE_RADIUS = 0.42f * HEAD_RADIUS;
     // 鱼尾小圆半径
     private float TAIL_SMALL_CIRCLE_RADIUS = 0.168f * HEAD_RADIUS;
+    // 属性动画当前的值
+    private float currentValue = 0;
 
     @IntDef(flag = true, value = {SIDE_LEFT, SIDE_RIGHT})
     @Retention(RetentionPolicy.SOURCE)
@@ -59,44 +63,80 @@ public class FishDrawable extends Drawable {
         mPaint.setARGB(110, 244, 92, 71);
         // 鱼的重心也是用鱼头半径表示
         keyPoint = new PointF(5.324f * HEAD_RADIUS, 5.324f * HEAD_RADIUS);
+
+        // 使用属性动画来实现鱼在原地不断摆动
+        ValueAnimator valueAnimator = ValueAnimator.ofFloat(0, 360);
+        // 设置播放时间
+        valueAnimator.setDuration(1000);
+        // 设置重复次数（无限次）
+        valueAnimator.setRepeatCount(ValueAnimator.INFINITE);
+        // 设置重复模式
+        // RESTART：重新开始重复，REVERSE：反转重复
+        valueAnimator.setRepeatMode(ValueAnimator.RESTART);
+        // 设置插值器（线性）
+        valueAnimator.setInterpolator(new LinearInterpolator());
+        valueAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                currentValue = (float) animation.getAnimatedValue();
+                invalidateSelf();
+            }
+        });
+        // 开始播放
+        valueAnimator.start();
     }
 
     @Override
     public void draw(@NonNull Canvas canvas) {
 
+        // 鱼头的朝向角度随属性动画的值变化 --> 摆动方向：先左后右
+        float headAngle = (float) (fishMainAngle + Math.sin(Math.toRadians(currentValue)) * 10);
+
         // 鱼头的圆心坐标
-        PointF headPoint = calculatePoint(keyPoint, BODY_LENGTH / 2, fishMainAngle);
+        PointF headPoint = calculatePoint(keyPoint, BODY_LENGTH / 2, headAngle);
 
         // 绘画鱼头
         canvas.drawCircle(headPoint.x, headPoint.y, HEAD_RADIUS, mPaint);
 
         // 画右鱼鳍
-        PointF rightFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, fishMainAngle - 110);
-        makeFins(canvas, rightFinsPoint, fishMainAngle, SIDE_RIGHT);
+        PointF rightFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, headAngle - 110);
+        makeFins(canvas, rightFinsPoint, headAngle, SIDE_RIGHT);
 
         // 画左鱼鳍
-        PointF leftFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, fishMainAngle + 110);
-        makeFins(canvas, leftFinsPoint, fishMainAngle, SIDE_LEFT);
+        PointF leftFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, headAngle + 110);
+        makeFins(canvas, leftFinsPoint, headAngle, SIDE_LEFT);
 
         // 鱼尾大圆的圆心，也是躯干连接尾部的圆心
-        PointF bodyBottomCenterPoint = calculatePoint(headPoint, BODY_LENGTH, fishMainAngle - 180);
+        PointF bodyBottomCenterPoint = calculatePoint(headPoint, BODY_LENGTH, headAngle - 180);
+
+        // 画鱼的躯干
+        makeBody(canvas, headPoint, bodyBottomCenterPoint, headAngle);
+
+        // 鱼尾上部分的朝向角度随鱼头的朝向角度变化 --> 摆动方向：先右后左
+        float tailUpperAngle = (float) (headAngle + Math.cos(Math.toRadians(currentValue)) * 15);
 
         // 画鱼尾的上部分
         makeSegment(canvas, bodyBottomCenterPoint, TAIL_BIG_CIRCLE_RADIUS, TAIL_MIDDLE_CIRCLE_RADIUS,
-                fishMainAngle, true);
+                tailUpperAngle, true);
+
+        // 鱼尾下部分的朝向角度随鱼头的朝向角度变化 --> 摆动方向：先左后右
+        float tailBottomAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue)) * 25);
 
         // 画鱼尾的下部分
         makeSegment(canvas, fishTailMiddlePoint, TAIL_MIDDLE_CIRCLE_RADIUS, TAIL_SMALL_CIRCLE_RADIUS,
-                fishMainAngle, false);
+                tailBottomAngle, false);
+
+        // 鱼尾三角形底边的半长随属性动画的值变化
+        float tailTriangleLength = (float) Math.abs(Math.sin(Math.toRadians(currentValue)) * TAIL_BIG_CIRCLE_RADIUS);
+
+        // 鱼尾三角形的朝向角度随鱼尾下部分的朝向角度变化 --> 摆动方向：先左后右
+        float tailTriangleAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue)) * 35);
 
         // 画鱼尾的三角形
         makeTriangle(canvas, fishTailSmallPoint, TAIL_MIDDLE_CIRCLE_RADIUS * 2.7f,
-                TAIL_BIG_CIRCLE_RADIUS, fishMainAngle);
+                tailTriangleLength, tailTriangleAngle);
         makeTriangle(canvas, fishTailSmallPoint, TAIL_MIDDLE_CIRCLE_RADIUS * 2.7f - 10,
-                TAIL_BIG_CIRCLE_RADIUS - 20, fishMainAngle);
-
-        // 身体
-        makeBody(canvas, headPoint, bodyBottomCenterPoint, fishMainAngle);
+                tailTriangleLength - 20, tailTriangleAngle);
     }
 
     /**
