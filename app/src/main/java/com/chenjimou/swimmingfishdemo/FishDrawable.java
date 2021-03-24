@@ -17,12 +17,17 @@ import androidx.annotation.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
+/**
+ * 这里的所有点坐标都是相对于以Drawable的左上顶点为原点的Android坐标系（Y轴以270°为正方向）
+ */
 public class FishDrawable extends Drawable {
 
     private Paint mPaint;
     private Path mPath;
     // 鱼的重心，即鱼躯干的中心
     private PointF keyPoint;
+    // 鱼头的圆心
+    private PointF fishHeadPoint;
     // 鱼尾中圆的圆心
     private PointF fishTailMiddlePoint;
     // 鱼尾小圆的圆心
@@ -41,6 +46,8 @@ public class FishDrawable extends Drawable {
     private float TAIL_SMALL_CIRCLE_RADIUS = 0.168f * HEAD_RADIUS;
     // 属性动画当前的值
     private float currentValue = 0;
+    // 鱼游动时摆动频率的变化值
+    private float frequence = 1f;
 
     @IntDef(flag = true, value = {SIDE_LEFT, SIDE_RIGHT})
     @Retention(RetentionPolicy.SOURCE)
@@ -86,51 +93,67 @@ public class FishDrawable extends Drawable {
         valueAnimator.start();
     }
 
+    /**
+     * 设置Drawable的宽度
+     */
+    @Override
+    public int getIntrinsicWidth() {
+        return (int) (10.648f * HEAD_RADIUS);
+    }
+
+    /**
+     * 设置Drawable的高度
+     */
+    @Override
+    public int getIntrinsicHeight() {
+        return (int) (10.648f * HEAD_RADIUS);
+    }
+
     @Override
     public void draw(@NonNull Canvas canvas) {
 
         // 鱼头的朝向角度随属性动画的值变化 --> 摆动方向：先左后右
-        float headAngle = (float) (fishHeadAngle + Math.sin(Math.toRadians(currentValue)) * 10);
+        float headAngle = (float) (fishHeadAngle + Math.sin(Math.toRadians(currentValue * frequence)) * 10);
 
         // 鱼头的圆心坐标
-        PointF headPoint = calculatePoint(keyPoint, BODY_LENGTH / 2, headAngle);
+        fishHeadPoint = calculatePoint(keyPoint, BODY_LENGTH / 2, headAngle);
 
         // 绘画鱼头
-        canvas.drawCircle(headPoint.x, headPoint.y, HEAD_RADIUS, mPaint);
+        canvas.drawCircle(fishHeadPoint.x, fishHeadPoint.y, HEAD_RADIUS, mPaint);
 
         // 画右鱼鳍
-        PointF rightFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, headAngle - 110);
+        PointF rightFinsPoint = calculatePoint(fishHeadPoint, 0.9f * HEAD_RADIUS, headAngle - 110);
         makeFins(canvas, rightFinsPoint, headAngle, SIDE_RIGHT);
 
         // 画左鱼鳍
-        PointF leftFinsPoint = calculatePoint(headPoint, 0.9f * HEAD_RADIUS, headAngle + 110);
+        PointF leftFinsPoint = calculatePoint(fishHeadPoint, 0.9f * HEAD_RADIUS, headAngle + 110);
         makeFins(canvas, leftFinsPoint, headAngle, SIDE_LEFT);
 
         // 鱼尾大圆的圆心，也是躯干连接尾部的圆心
-        PointF bodyBottomCenterPoint = calculatePoint(headPoint, BODY_LENGTH, headAngle - 180);
+        PointF bodyBottomCenterPoint = calculatePoint(fishHeadPoint, BODY_LENGTH, headAngle - 180);
 
         // 画鱼的躯干
-        makeBody(canvas, headPoint, bodyBottomCenterPoint, headAngle);
+        makeBody(canvas, fishHeadPoint, bodyBottomCenterPoint, headAngle);
 
         // 鱼尾上部分的朝向角度随鱼头的朝向角度变化 --> 摆动方向：先右后左
-        float tailUpperAngle = (float) (headAngle + Math.cos(Math.toRadians(currentValue)) * 15);
+        float tailUpperAngle = (float) (headAngle + Math.cos(Math.toRadians(currentValue * frequence)) * 15);
 
         // 画鱼尾的上部分
         makeSegment(canvas, bodyBottomCenterPoint, TAIL_BIG_CIRCLE_RADIUS, TAIL_MIDDLE_CIRCLE_RADIUS,
                 tailUpperAngle, true);
 
         // 鱼尾下部分的朝向角度随鱼头的朝向角度变化 --> 摆动方向：先左后右
-        float tailBottomAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue)) * 25);
+        float tailBottomAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue * frequence)) * 25);
 
         // 画鱼尾的下部分
         makeSegment(canvas, fishTailMiddlePoint, TAIL_MIDDLE_CIRCLE_RADIUS, TAIL_SMALL_CIRCLE_RADIUS,
                 tailBottomAngle, false);
 
         // 鱼尾三角形底边的半长随属性动画的值变化
-        float tailTriangleLength = (float) Math.abs(Math.sin(Math.toRadians(currentValue)) * TAIL_BIG_CIRCLE_RADIUS);
+        float tailTriangleLength = (float) Math.abs(Math.sin(Math.toRadians(currentValue * frequence)) * TAIL_BIG_CIRCLE_RADIUS);
 
         // 鱼尾三角形的朝向角度随鱼尾下部分的朝向角度变化 --> 摆动方向：先左后右
-        float tailTriangleAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue)) * 35);
+        float tailTriangleAngle = (float) (headAngle + Math.sin(Math.toRadians(currentValue * frequence)) * 35);
 
         // 画鱼尾的三角形
         makeTriangle(canvas, fishTailSmallPoint, TAIL_MIDDLE_CIRCLE_RADIUS * 2.7f,
@@ -275,13 +298,13 @@ public class FishDrawable extends Drawable {
     }
 
     /**
-     * 以参照点建立坐标系，根据距离和角度，计算出目标点
+     * 算法：以参照点为原点建立Android坐标系，根据距离和角度，计算出目标点
      * @param referencePoint 参照点
      * @param distance 目标点与参照点的距离
      * @param angle 以参照点建立坐标系，目标点与参照点之间连线与x轴正方向的夹角角度
      * @return 目标点
      */
-    private PointF calculatePoint(PointF referencePoint, float distance, float angle){
+    public PointF calculatePoint(PointF referencePoint, float distance, float angle){
         // 根据cos函数计算出目标点的x坐标
         float deltaX = (float) (Math.cos(Math.toRadians(angle)) * distance);
         // 根据sin函数计算出目标点的y坐标
@@ -305,19 +328,27 @@ public class FishDrawable extends Drawable {
         return PixelFormat.TRANSLUCENT;
     }
 
-    /**
-     * 设置Drawable的宽度
-     */
-    @Override
-    public int getIntrinsicWidth() {
-        return (int) (10.648f * HEAD_RADIUS);
+    public PointF getKeyPoint() {
+        return keyPoint;
     }
 
-    /**
-     * 设置Drawable的高度
-     */
-    @Override
-    public int getIntrinsicHeight() {
-        return (int) (10.648f * HEAD_RADIUS);
+    public PointF getFishHeadPoint() {
+        return fishHeadPoint;
+    }
+
+    public float getHEAD_RADIUS() {
+        return HEAD_RADIUS;
+    }
+
+    public float getFrequence() {
+        return frequence;
+    }
+
+    public void setFrequence(float frequence) {
+        this.frequence = frequence;
+    }
+
+    public void setFishHeadAngle(float fishHeadAngle) {
+        this.fishHeadAngle = fishHeadAngle;
     }
 }
