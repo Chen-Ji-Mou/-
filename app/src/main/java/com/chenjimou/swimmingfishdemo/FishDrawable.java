@@ -28,9 +28,9 @@ public class FishDrawable extends Drawable {
     // 鱼尾小圆的圆心
     private PointF fishTailSmallPoint;
     // 鱼头在未播放动画时的朝向角度（以鱼的重心建立坐标系，鱼头圆心与重心之间连线与x轴正方向的夹角角度）
-    private float fishMainAngle = 90;
+    private float fishHeadAngle = 90;
     // 鱼头的半径，鱼其他部位的大小都依据鱼头的半径决定
-    private float HEAD_RADIUS = 50;
+    private float HEAD_RADIUS = 30;
     // 鱼身的长度
     private float BODY_LENGTH = 3.2f * HEAD_RADIUS;
     // 鱼尾大圆的半径
@@ -90,7 +90,7 @@ public class FishDrawable extends Drawable {
     public void draw(@NonNull Canvas canvas) {
 
         // 鱼头的朝向角度随属性动画的值变化 --> 摆动方向：先左后右
-        float headAngle = (float) (fishMainAngle + Math.sin(Math.toRadians(currentValue)) * 10);
+        float headAngle = (float) (fishHeadAngle + Math.sin(Math.toRadians(currentValue)) * 10);
 
         // 鱼头的圆心坐标
         PointF headPoint = calculatePoint(keyPoint, BODY_LENGTH / 2, headAngle);
