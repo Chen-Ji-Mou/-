@@ -35,7 +35,7 @@ public class FishDrawable extends Drawable {
     // 鱼头在未播放动画时的朝向角度（以鱼的重心建立坐标系，鱼头圆心与重心之间连线与x轴正方向的夹角角度）
     private float fishHeadAngle = 90;
     // 鱼头的半径，鱼其他部位的大小都依据鱼头的半径决定
-    private float HEAD_RADIUS = 30;
+    private float HEAD_RADIUS = 40;
     // 鱼身的长度
     private float BODY_LENGTH = 3.2f * HEAD_RADIUS;
     // 鱼尾大圆的半径
